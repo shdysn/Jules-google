@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+import concurrent.futures
 from pathlib import Path
 from pdf2image import convert_from_path
 import google.generativeai as genai
@@ -21,15 +22,32 @@ def perform_ocr_on_images(images):
     print("Performing OCR on images using Gemini...")
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    full_text = ""
-    for i, image in enumerate(images):
-        print(f"Processing page {i + 1}/{len(images)}...")
+    def process_image(index, image):
+        print(f"Processing page {index + 1}/{len(images)}...")
         prompt = "Extract all the text from this image. Only output the extracted text, do not include any other comments or Markdown formatting around the text."
         response = model.generate_content([prompt, image])
-        full_text += response.text + "\n\n"
-        # Avoid hitting API rate limits
-        if i < len(images) - 1:
-            time.sleep(2)
+        return index, response.text
+
+    results = []
+    max_workers = min(10, len(images)) if len(images) > 0 else 1
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for i, image in enumerate(images):
+            futures.append(executor.submit(process_image, i, image))
+            # Stagger requests in the main thread to avoid blocking thread pool workers
+            if i < len(images) - 1:
+                time.sleep(2)
+
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+
+    # Sort results by index to ensure correct order
+    results.sort(key=lambda x: x[0])
+
+    full_text = ""
+    for _, text in results:
+        full_text += text + "\n\n"
 
     return full_text
 
