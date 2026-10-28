@@ -23,5 +23,38 @@ class TestUrduOCR(unittest.TestCase):
                 output = mock_stdout.getvalue()
                 self.assertIn(f"An error occurred: {test_error_message}", output)
 
+    @patch('urdu_ocr.genai.GenerativeModel')
+    def test_proofread_urdu_text(self, mock_generative_model):
+        # Arrange
+        mock_model_instance = mock_generative_model.return_value
+        from unittest.mock import MagicMock
+        mock_response = MagicMock()
+        mock_response.text = "Clean Urdu Text"
+        mock_model_instance.generate_content.return_value = mock_response
+
+        raw_text = "Raw Urdu Text"
+
+        # Act
+        with patch('sys.stdout', new_callable=io.StringIO) as mock_stdout:
+            result = urdu_ocr.proofread_urdu_text(raw_text)
+
+            # Assert
+            output = mock_stdout.getvalue()
+            self.assertIn("Proofreading extracted Urdu text...", output)
+
+        self.assertEqual(result, "Clean Urdu Text")
+        mock_generative_model.assert_called_once_with('gemini-2.5-flash')
+
+        expected_prompt = (
+            "You are an expert Urdu proofreader. Your task is to review the following "
+            "raw Urdu text extracted via OCR. Please correct any spelling mistakes, fix "
+            "broken Unicode, and adjust incorrect Urdu ligatures (like dots, Noon-Ghunna, "
+            "or Hamza). Output only the final, clean, and properly formatted Urdu text. "
+            "Do not include any English text, explanations, or extra commentary.\n\n"
+            "Raw Text:\n"
+            f"{raw_text}"
+        )
+        mock_model_instance.generate_content.assert_called_once_with(expected_prompt)
+
 if __name__ == '__main__':
     unittest.main()
