@@ -21,17 +21,17 @@ def perform_ocr_on_images(images):
     print("Performing OCR on images using Gemini...")
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    full_text = ""
+    text_parts = []
     for i, image in enumerate(images):
         print(f"Processing page {i + 1}/{len(images)}...")
         prompt = "Extract all the text from this image. Only output the extracted text, do not include any other comments or Markdown formatting around the text."
         response = model.generate_content([prompt, image])
-        full_text += response.text + "\n\n"
+        text_parts.append(response.text + "\n\n")
         # Avoid hitting API rate limits
         if i < len(images) - 1:
             time.sleep(2)
 
-    return full_text
+    return "".join(text_parts)
 
 def proofread_urdu_text(raw_text: str) -> str:
     """
